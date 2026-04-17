@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>玲珑公馆KTV预定系统</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue3-sfc-loader/dist/vue3-sfc-loader.js"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- 登录页面 -->
+        <div v-if="!currentUser" class="login-container">
+            <div class="login-box">
+                <div class="logo">
+                    <h1>🎤 鸿丰大酒店</h1>
+                    <p>KTV预定系统</p>
+                </div>
+                <form @submit.prevent="handleLogin" class="login-form">
+                    <div class="form-group">
+                        <label>用户名</label>
+                        <input type="text" v-model="loginForm.username" placeholder="请输入用户名" required>
+                    </div>
+                    <div class="form-group">
+                        <label>密码</label>
+                        <input type="password" v-model="loginForm.password" placeholder="请输入密码" required>
+                    </div>
+                    <div v-if="loginError" class="error-message">{{ loginError }}</div>
+                    <button type="submit" class="btn-primary">登 录</button>
+                </form>
+                <div class="login-tip">
+                    <p>测试账号：manager1 / ktv2024</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主页面 -->
+        <div v-else class="main-container">
+            <!-- 顶部导航 -->
+            <header class="header">
+                <div class="header-left">
+                    <h1>🎤 鸿丰大酒店</h1>
+                    <span class="subtitle">KTV预定系统</span>
+                </div>
+                <div class="header-right">
+                    <span class="user-info">
+                        欢迎，{{ currentUser.name }}
+                        <span class="user-type">{{ currentUser.type === 'admin' ? '管理员' : '经理' }}</span>
+                    </span>
+                    <button @click="handleLogout" class="btn-logout">退出登录</button>
+                </div>
+            </header>
+
+            <!-- 内容区域 -->
+            <main class="content">
+                <!-- 日期选择 -->
+                <div class="date-selector">
+                    <label>选择日期：</label>
+                    <input type="date" v-model="selectedDate" @change="loadRooms">
+                </div>
+
+                <!-- 标签页 -->
+                <div class="tabs">
+                    <button :class="{ active: activeTab === 'rooms' }" @click="activeTab = 'rooms'">房间列表</button>
+                    <button :class="{ active: activeTab === 'bookings' }" @click="loadBookings(); activeTab = 'bookings'">我的预定</button>
+                    <button v-if="currentUser.type === 'admin'" :class="{ active: activeTab === 'users' }" @click="loadUsers(); activeTab = 'users'">账号管理</button>
+                </div>
+
+                <!-- 房间列表 -->
+                <div v-show="activeTab === 'rooms'" class="rooms-section">
+                    <div v-if="rooms.length === 0" class="empty-state">
+                        <p>暂无房间数据</p>
+                    </div>
+                    <div v-else class="rooms-grid">
+                        <div v-for="room in rooms" :key="room.id" class="room-card" :class="{ booked: room.status === 'booked' }">
+                            <div class="room-header">
+                                <h3>{{ room.name }}</h3>
+                                <span class="room-status" :class="room.status">
+                                    {{ room.status === 'available' ? '空闲' : '已预定' }}
+                                </span>
+                            </div>
+                            <div class="room-info">
+                                <p><span class="label">房号：</span>{{ room.id }}</p>
+                                <p><span class="label">低消：</span>¥{{ room.minPrice }}</p>
+                                <p><span class="label">容纳：</span>{{ room.capacity }}人</p>
+                                <p><span class="label">特色：</span>{{ room.features }}</p>
+                            </div>
+                            <div v-if="room.status === 'booked'" class="booking-info">
+                                <p><span class="label">预定人：</span>{{ room.booking.managerName }}</p>
+                                <p><span class="label">时间：</span>{{ room.booking.timeSlot }}</p>
+                                <p v-if="room.booking.contactName"><span class="label">联系人：</span>{{ room.booking.contactName }}</p>
+                            </div>
+                            <div class="room-actions">
+                                <button v-if="room.status === 'available'" @click="openBookingModal(room)" class="btn-book">立即预定</button>
+                                <button v-else-if="room.booking && room.booking.managerId === currentUser.id" @click="cancelBooking(room.booking)" class="btn-cancel">取消预定</button>
+                                <span v-else class=" booked-tip">已被预定</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 预定记录 -->
+                <div v-show="activeTab === 'bookings'" class="bookings-section">
+                    <div v-if="myBookings.length === 0" class="empty-state">
+                        <p>暂无预定记录</p>
+                    </div>
+                    <div v-else class="bookings-list">
+                        <div v-for="booking in myBookings" :key="booking.id" class="booking-card">
+                            <div class="booking-details">
+                                <h3>{{ booking.roomName }}</h3>
+                                <p><span class="label">预定日期：</span>{{ booking.date }}</p>
+                                <p><span class="label">时间段：</span>{{ booking.timeSlot }}</p>
+                                <p v-if="booking.contactName"><span class="label">联系人：</span>{{ booking.contactName }}</p>
+                                <p v-if="booking.contactPhone"><span class="label">联系电话：</span>{{ booking.contactPhone }}</p>
+                                <p v-if="booking.notes"><span class="label">备注：</span>{{ booking.notes }}</p>
+                            </div>
+                            <div class="booking-actions">
+                                <span class="booking-status" :class="booking.status">{{ booking.status === 'active' ? '有效' : '已取消' }}</span>
+                                <button v-if="booking.status === 'active'" @click="cancelBooking(booking)" class="btn-cancel-small">取消预定</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 用户管理（管理员） -->
+                <div v-show="activeTab === 'users' && currentUser.type === 'admin'" class="users-section">
+                    <div class="section-header">
+                        <h2>经理账号管理</h2>
+                        <button @click="openUserModal()" class="btn-add">添加经理</button>
+                    </div>
+                    <div class="users-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>编号</th>
+                                    <th>用户名</th>
+                                    <th>姓名</th>
+                                    <th>电话</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="manager in managers" :key="manager.id">
+                                    <td>{{ manager.id }}</td>
+                                    <td>{{ manager.username }}</td>
+                                    <td>{{ manager.name }}</td>
+                                    <td>{{ manager.phone || '-' }}</td>
+                                    <td>
+                                        <button @click="openUserModal(manager)" class="btn-edit">编辑</button>
+                                        <button @click="deleteManager(manager.id)" class="btn-delete">删除</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- 预定弹窗 -->
+        <div v-if="showBookingModal" class="modal-overlay" @click.self="showBookingModal = false">
+            <div class="modal">
+                <div class="modal-header">
+                    <h3>预定房间 - {{ selectedRoom.name }}</h3>
+                    <button @click="showBookingModal = false" class="modal-close">&times;</button>
+                </div>
+                <form @submit.prevent="submitBooking" class="modal-body">
+                    <div class="form-group">
+                        <label>房间</label>
+                        <input type="text" :value="selectedRoom.name + ' (低消¥' + selectedRoom.minPrice + ')'" disabled>
+                    </div>
+                    <div class="form-group">
+                        <label>预定日期</label>
+                        <input type="date" v-model="bookingForm.date" required>
+                    </div>
+                    <div class="form-group">
+                        <label>时间段</label>
+                        <select v-model="bookingForm.timeSlot" required>
+                            <option value="">请选择时间段</option>
+                            <option value="12:00-15:00">12:00-15:00 (午餐场)</option>
+                            <option value="15:00-18:00">15:00-18:00 (下午场)</option>
+                            <option value="18:00-21:00">18:00-21:00 (晚场)</option>
+                            <option value="21:00-24:00">21:00-24:00 (夜场)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>联系人姓名</label>
+                        <input type="text" v-model="bookingForm.contactName" placeholder="请输入联系人姓名">
+                    </div>
+                    <div class="form-group">
+                        <label>联系电话</label>
+                        <input type="tel" v-model="bookingForm.contactPhone" placeholder="请输入联系电话">
+                    </div>
+                    <div class="form-group">
+                        <label>备注</label>
+                        <textarea v-model="bookingForm.notes" placeholder="其他要求（选填）" rows="3"></textarea>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" @click="showBookingModal = false" class="btn-secondary">取消</button>
+                        <button type="submit" class="btn-primary">确认预定</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- 经理账号弹窗 -->
+        <div v-if="showUserModal" class="modal-overlay" @click.self="showUserModal = false">
+            <div class="modal">
+                <div class="modal-header">
+                    <h3>{{ editingUser.id ? '编辑经理' : '添加经理' }}</h3>
+                    <button @click="showUserModal = false" class="modal-close">&times;</button>
+                </div>
+                <form @submit.prevent="submitUser" class="modal-body">
+                    <div class="form-group">
+                        <label>用户名</label>
+                        <input type="text" v-model="editingUser.username" placeholder="请输入用户名" required>
+                    </div>
+                    <div class="form-group">
+                        <label>密码</label>
+                        <input type="password" v-model="editingUser.password" :placeholder="editingUser.id ? '不修改请留空' : '请输入密码'" :required="!editingUser.id">
+                    </div>
+                    <div class="form-group">
+                        <label>姓名</label>
+                        <input type="text" v-model="editingUser.name" placeholder="请输入姓名" required>
+                    </div>
+                    <div class="form-group">
+                        <label>电话</label>
+                        <input type="tel" v-model="editingUser.phone" placeholder="请输入联系电话">
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" @click="showUserModal = false" class="btn-secondary">取消</button>
+                        <button type="submit" class="btn-primary">保存</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- 提示消息 -->
+        <div v-if="toast.show" class="toast" :class="toast.type">
+            {{ toast.message }}
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>珑临公馆 KTV - 订房管理系统</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:system-ui, -apple-system, "Microsoft YaHei", sans-serif}
+body{background:#111827;color:#fff;min-height:100vh}
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.login-box{background:#1f2937;border-radius:16px;padding:40px 30px;width:100%;max-width:400px;box-shadow:0 20px 60px #0006}
+.login-box h2{margin-bottom:6px}
+.login-box p{color:#9ca3af;margin-bottom:24px}
+.form-item{margin-bottom:18px}
+.form-item label{display:block;margin-bottom:6px;color:#e5e7eb;font-size:14px}
+.form-item input{width:100%;padding:12px 14px;background:#374151;border:1px solid #4b5563;border-radius:10px;color:#fff;outline:none}
+.form-item input:focus{border-color:#e11d48}
+.btn{width:100%;padding:14px;background:#e11d48;color:#fff;border:none;border-radius:12px;font-weight:500;cursor:pointer}
+.btn:hover{background:#be123c}
+.header{background:#1f2937;padding:14px 20px;position:sticky;top:0;z-index:99}
+.header-inner{max-width:1100px;margin:0 auto;display:flex;justify-content:space-between;align-items:center}
+.logo{font-size:18px;font-weight:600}
+.user-menu{position:relative}
+.user-btn{background:#374151;border:none;color:#fff;padding:8px 14px;border-radius:10px;cursor:pointer}
+.user-dropdown{position:absolute;top:110%;right:0;background:#273449;border-radius:12px;width:170px;overflow:hidden;display:none}
+.user-dropdown.show{display:block}
+.dropdown-item{padding:12px 16px;cursor:pointer}
+.dropdown-item:hover{background:#374151}
+.dropdown-item.logout{color:#fca5a5}
+.container{max-width:1100px;margin:0 auto;padding:24px}
+.admin-panel{background:#1f2937;border-radius:16px;padding:24px;margin-bottom:30px;display:none}
+.manager-list{background:#273449;border-radius:10px;padding:16px;margin-top:16px}
+.manager-item{padding:8px 0;border-bottom:1px solid #374151}
+.manager-item:last-child{border-bottom:none}
+.room-group{background:#1f2937;border-radius:16px;padding:20px;margin-bottom:20px}
+.group-title{font-size:16px;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.group-title::before{content:"";width:4px;height:16px;background:#e11d48;border-radius:2px}
+.room-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:10px}
+.room{background:#374151;border-radius:12px;padding:14px 10px;text-align:center;cursor:pointer}
+.room.free{background:#065f46}
+.room.mine{background:#92400e}
+.room.booked{background:#7f1d1d;cursor:not-allowed}
+.room-num{font-weight:600;margin-bottom:4px}
+.room-price{font-size:12px;color:#9ca3af}
+.modal{position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;z-index:100;display:none}
+.modal-box{background:#1f2937;border-radius:16px;padding:30px;width:90%;max-width:360px}
+.modal-btns{display:flex;gap:10px;margin-top:20px}
+</style>
+</head>
+<body>
+
+<div id="login" class="login-wrap">
+  <div class="login-box">
+    <h2>珑临公馆 KTV</h2>
+    <p>订房管理系统</p>
+    <div class="form-item"><label>账号</label><input id="user"></div>
+    <div class="form-item"><label>密码</label><input type="password" id="pwd"></div>
+    <button class="btn" onclick="login()">登录</button>
+  </div>
+</div>
+
+<div id="main" style="display:none">
+<div class="header">
+  <div class="header-inner">
+    <div class="logo">珑临公馆 KTV</div>
+    <div class="user-menu">
+      <button class="user-btn" onclick="toggleMenu()" id="uname"></button>
+      <div class="user-dropdown" id="menu">
+        <div class="dropdown-item" id="adminMenu" style="display:none" onclick="showAdmin()">管理后台</div>
+        <div class="dropdown-item" onclick="showPwd()">修改密码</div>
+        <div class="dropdown-item logout" onclick="logout()">退出登录</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="admin-panel" id="adminPanel">
+    <h3>管理员后台</h3>
+    <div class="form-item"><label>添加经理（账号:密码）</label><input id="addM"></div>
+    <button class="btn" onclick="addManager()">添加经理</button>
+    <div class="manager-list" id="mlist"></div>
+    <button class="btn" style="background:#dc2626;margin-top:16px" onclick="clearBook()">清空所有预订</button>
+  </div>
+
+  <div id="roomList"></div>
+</div>
+</div>
+
+<div class="modal" id="bookModal">
+  <div class="modal-box">
+    <h3>预订房间</h3>
+    <p style="margin:16px 0">房号：<span id="mr"></span><br>低消：<span id="mp"></span> 元</p>
+    <div class="modal-btns">
+      <button class="btn" style="flex:1" onclick="okBook()">确认</button>
+      <button class="btn" style="flex:1;background:#6b7280" onclick="closeBook()">取消</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="pwdModal">
+  <div class="modal-box">
+    <h3>修改密码</h3>
+    <div class="form-item"><label>当前密码</label><input type="password" id="o"></div>
+    <div class="form-item"><label>新密码</label><input type="password" id="n"></div>
+    <div class="form-item"><label>确认新密码</label><input type="password" id="c"></div>
+    <div class="modal-btns">
+      <button class="btn" style="flex:1" onclick="savePwd()">保存</button>
+      <button class="btn" style="flex:1;background:#6b7280" onclick="closePwd()">取消</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const roomData = [
+  {num:38,price:2280},{num:40,price:2280},
+  {num:9,price:2380},{num:10,price:2380},
+  {num:8,price:2980},{num:15,price:2980},{num:28,price:2980},{num:31,price:2980},{num:33,price:2980},{num:35,price:2980},
+  {num:2,price:3580},{num:3,price:3580},{num:29,price:3580},{num:30,price:3580},{num:32,price:3580},{num:36,price:3580},{num:222,price:3580},{num:555,price:3580},
+  {num:39,price:3980},
+  {num:6,price:4280},{num:20,price:4280},
+  {num:333,price:4680},
+  {num:111,price:4980},{num:666,price:4980},{num:999,price:4980},
+  {num:888,price:5380}
+];
+
+let u = null;
+let sel = null;
+
+function users(){return JSON.parse(localStorage.ktv_u||'{"admin":{"pwd":"admin","role":"admin"}}')}
+function books(){return JSON.parse(localStorage.ktv_b||'{}')}
+function setUsers(d){localStorage.ktv_u=JSON.stringify(d)}
+function setBooks(d){localStorage.ktv_b=JSON.stringify(d)}
+
+function login(){
+  const username=document.getElementById('user').value
+  const password=document.getElementById('pwd').value
+  const userList=users()
+  if(!userList[username]||userList[username].pwd!==password)return alert('账号或密码错误')
+  u={name:username,role:userList[username].role}
+  document.getElementById('login').style.display='none'
+  document.getElementById('main').style.display='block'
+  document.getElementById('uname').innerText=u.name
+  if(u.role==='admin')document.getElementById('adminMenu').style.display='block'
+  renderRoom()
+  renderManager()
+}
+
+function logout(){
+  u=null;document.getElementById('main').style.display='none';document.getElementById('login').style.display='flex';document.getElementById('menu').classList.remove('show')
+}
+
+function toggleMenu(){document.getElementById('menu').classList.toggle('show')}
+
+document.addEventListener('click',e=>{
+  if(!document.querySelector('.user-menu').contains(e.target))document.getElementById('menu').classList.remove('show')
+})
+
+function showAdmin(){
+  document.getElementById('menu').classList.remove('show')
+  const p=document.getElementById('adminPanel')
+  p.style.display=p.style.display=='none'?'block':'none'
+}
+
+function renderRoom(){
+  const b=books()
+  const box=document.getElementById('roomList')
+  box.innerHTML=''
+  const g={}
+  roomData.forEach(r=>{if(!g[r.price])g[r.price]=[];g[r.price].push(r)})
+  Object.keys(g).sort((a,b)=>a-b).forEach(price=>{
+    const group=document.createElement('div')
+    group.className='room-group'
+    group.innerHTML=`<div class="group-title">低消 ${price} 元</div>`
+    const grid=document.createElement('div')
+    grid.className='room-grid'
+    g[price].forEach(r=>{
+      const div=document.createElement('div')
+      div.className='room'
+      const bu=b[r.num]
+      if(!bu){div.classList.add('free');div.onclick=()=>{sel=r;document.getElementById('mr').innerText=r.num;document.getElementById('mp').innerText=r.price;document.getElementById('bookModal').style.display='flex'}}
+      else if(bu===u.name){div.classList.add('mine');div.onclick=()=>{if(confirm('确定取消？')){delete b[r.num];setBooks(b);renderRoom()}}}
+      else div.classList.add('booked')
+      div.innerHTML=`<div class="room-num">${r.num}</div><div class="room-price">${price}</div>`
+      grid.appendChild(div)
+    })
+    group.appendChild(grid)
+    box.appendChild(group)
+  })
+}
+
+function closeBook(){document.getElementById('bookModal').style.display='none'}
+function okBook(){const b=books();b[sel.num]=u.name;setBooks(b);closeBook();renderRoom()}
+
+function addManager(){
+  const v=document.getElementById('addM').value
+  if(!v.includes(':'))return alert('格式：账号:密码')
+  const[user,pwd]=v.split(':')
+  const ul=users()
+  if(ul[user])return alert('已存在')
+  ul[user]={pwd,role:'manager'}
+  setUsers(ul)
+  renderManager()
+  document.getElementById('addM').value=''
+}
+
+function renderManager(){
+  const ul=users()
+  const ml=document.getElementById('mlist')
+  ml.innerHTML=''
+  for(const name in ul){
+    if(ul[name].role==='manager'){
+      const d=document.createElement('div')
+      d.className='manager-item'
+      d.innerText=`账号：${name}　密码：${ul[name].pwd}`
+      ml.appendChild(d)
+    }
+  }
+}
+
+function clearBook(){if(confirm('确定清空？')){setBooks({});renderRoom()}}
+
+function showPwd(){document.getElementById('menu').classList.remove('show');document.getElementById('pwdModal').style.display='flex'}
+function closePwd(){document.getElementById('pwdModal').style.display='none'}
+function savePwd(){
+  const o=document.getElementById('o').value
+  const n=document.getElementById('n').value
+  const c=document.getElementById('c').value
+  if(n!==c)return alert('两次密码不一致')
+  const ul=users()
+  if(ul[u.name].pwd!==o)return alert('原密码错误')
+  ul[u.name].pwd=n
+  setUsers(ul)
+  closePwd()
+  alert('修改成功')
+}
+</script>
+</body>
+</html>
